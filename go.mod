@@ -1,4 +1,4 @@
-module git.joscomputing.space/FoxNetworking/zfs_exporter
+module github.com/FoxNetworking/zfs_exporter
 
 go 1.14
 
