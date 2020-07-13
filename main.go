@@ -13,8 +13,10 @@ import (
 )
 
 var poolName string
-var sizeCounter prometheus.Gauge
+
 var allocCounter prometheus.Gauge
+var capacity prometheus.Gauge
+var sizeCounter prometheus.Gauge
 
 func main() {
 	var (
@@ -26,14 +28,19 @@ func main() {
 
 	poolName = *poolNameFlag
 
-	sizeCounter = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: poolName + "_total_size",
-		Help: "The size of this pool",
-	})
-
 	allocCounter = promauto.NewGauge(prometheus.GaugeOpts{
 		Name: poolName + "_alloc_size",
 		Help: "The size allocated in this pool",
+	})
+
+	capacity = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: poolName + "_capacity",
+		Help: "The capacity reported by this pool, out of 100",
+	})
+
+	sizeCounter = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: poolName + "_total_size",
+		Help: "The size of this pool",
 	})
 
 	recordMetrics()
@@ -50,17 +57,23 @@ func recordMetrics() {
 				panic(err)
 			}
 
-			size, err := pool.GetProperty(zfs.PoolPropSize)
-			if err != nil {
-				panic(err)
-			}
-			sizeCounter.Set(atof(size))
-
 			alloc, err := pool.GetProperty(zfs.PoolPropAllocated)
 			if err != nil {
 				panic(err)
 			}
 			allocCounter.Set(atof(alloc))
+
+			poolCapacity, err := pool.GetProperty(zfs.PoolPropCapacity)
+			if err != nil {
+				panic(err)
+			}
+			capacity.Set(atof(poolCapacity))
+
+			size, err := pool.GetProperty(zfs.PoolPropSize)
+			if err != nil {
+				panic(err)
+			}
+			sizeCounter.Set(atof(size))
 
 			time.Sleep(2 * time.Second)
 		}

@@ -15,6 +15,8 @@ Use the following flags to configure to your situation:
     	Pool to monitor metrics with. (default "zpool")
 ```
 
+Start the service.
+
 You can then add this endpoint as an exporter to Prometheus:
 
 ```yaml
@@ -24,7 +26,7 @@ scrape_configs:
     - targets: ['[::1]:9312']
 ```
 
-This will give you two new gauge metrics: `rpool_alloc_size` (the pool's used space, in bytes) and `rpool_total_size` (the pool's combined size, in bytes.)
+This will give you three new gauge metrics: `poolname_alloc_size` (the pool's used space, in bytes), `poolname_total_size` (the pool's combined size, in bytes), and `poolname_capacity` (the capacity reported by ZFS as a whole number, out of 100).
 You can apply these to a graph in various systems and use to whatever fits your situation best.
 
 ![Grafana graph containing these two keys](https://owo.whats-th.is/8wB5Aiy.png)
