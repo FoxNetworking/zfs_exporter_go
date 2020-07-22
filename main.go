@@ -56,6 +56,7 @@ func recordMetrics() {
 			if err != nil {
 				panic(err)
 			}
+			defer pool.Close()
 
 			alloc, err := pool.GetProperty(zfs.PoolPropAllocated)
 			if err != nil {
