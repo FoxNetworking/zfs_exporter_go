@@ -14,7 +14,7 @@ Use the following flags to configure to your situation:
   -zfs.zpool-path string
     	Path to execute the zpool binary. (default "/sbin/zpool")
 ```
-Note that if /sbin/zpool does not exist, the zpool binary will be search for in $PATH.
+Note that if `/sbin/zpool` does not exist, the zpool binary will be search for in $PATH.
 Ensure this is properly configured if your zpool binary is in a non-standard location.
 
 Start the service.
