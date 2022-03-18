@@ -2,47 +2,65 @@ package main
 
 import (
 	"flag"
-	"github.com/bicomsystems/go-libzfs"
+
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 )
 
-var poolName string
+var (
+	allocCounter = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Subsystem: "zfs_pool",
+			Name:      "allocated",
+			Help:      "The allocated space for this pool",
+		},
+		[]string{"pool"},
+	)
 
-var allocCounter prometheus.Gauge
-var capacity prometheus.Gauge
-var sizeCounter prometheus.Gauge
+	sizeCounter = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Subsystem: "zfs_pool",
+			Name:      "size",
+			Help:      "The amount of bytes used in this pool",
+		},
+		[]string{"pool"},
+	)
+
+	freeCounter = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Subsystem: "zfs_pool",
+			Name:      "free",
+			Help:      "The amount of bytes free in this pool",
+		},
+		[]string{"pool"},
+	)
+
+	capacity = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Subsystem: "zfs_pool",
+			Name:      "capacity",
+			Help:      "The capacity reported by this pool, out of 100",
+		},
+		[]string{"pool"},
+	)
+)
 
 func main() {
 	var (
 		listenAddress = flag.String("web.listen-address", ":9312", "Address on which to expose metrics and web interface.")
 		metricsPath   = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
-		poolNameFlag  = flag.String("zfs.pool-name", "zpool", "Pool to monitor metrics with.")
+		zpoolPath     = flag.String("zfs.zpool-path", "/sbin/zpool", "Path to execute the zpool binary.")
 	)
 	flag.Parse()
 
-	poolName = *poolNameFlag
+	// Ensure zpool exists.
+	findZpoolBinary(*zpoolPath)
 
-	allocCounter = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: poolName + "_alloc_size",
-		Help: "The size allocated in this pool",
-	})
-
-	capacity = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: poolName + "_capacity",
-		Help: "The capacity reported by this pool, out of 100",
-	})
-
-	sizeCounter = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: poolName + "_total_size",
-		Help: "The size of this pool",
-	})
-
+	// Begin collection.
+	prometheus.MustRegister(allocCounter, sizeCounter, freeCounter, capacity)
 	recordMetrics()
 
 	http.Handle(*metricsPath, promhttp.Handler())
@@ -52,40 +70,19 @@ func main() {
 func recordMetrics() {
 	go func() {
 		for {
-			pool, err := zfs.PoolOpen(poolName)
-			if err != nil {
-				panic(err)
-			}
-			defer pool.Close()
+			// Query metrics.
+			pools := queryPoolMetrics()
 
-			alloc, err := pool.GetProperty(zfs.PoolPropAllocated)
-			if err != nil {
-				panic(err)
+			// Convert to usable metrics.
+			for _, pool := range pools {
+				allocCounter.With(prometheus.Labels{"pool": pool.Name}).Set(pool.Alloc)
+				sizeCounter.With(prometheus.Labels{"pool": pool.Name}).Set(pool.Size)
+				freeCounter.With(prometheus.Labels{"pool": pool.Name}).Set(pool.Free)
+				capacity.With(prometheus.Labels{"pool": pool.Name}).Set(pool.Capacity)
 			}
-			allocCounter.Set(atof(alloc))
 
-			poolCapacity, err := pool.GetProperty(zfs.PoolPropCapacity)
-			if err != nil {
-				panic(err)
-			}
-			capacity.Set(atof(poolCapacity))
-
-			size, err := pool.GetProperty(zfs.PoolPropSize)
-			if err != nil {
-				panic(err)
-			}
-			sizeCounter.Set(atof(size))
-
-			time.Sleep(2 * time.Second)
+			// Query every 10 seconds.
+			time.Sleep(10 * time.Second)
 		}
 	}()
-}
-
-func atof(p zfs.Property) float64 {
-	size := p.Value
-	f, err := strconv.Atoi(size)
-	if err != nil {
-		panic(err)
-	}
-	return float64(f)
 }
